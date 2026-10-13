@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test Report — AI Playwright Framework</title>
+<style>
+  :root {
+    --bg: #0f172a; --bg2: #1e293b; --bg3: #334155;
+    --text: #e2e8f0; --muted: #94a3b8;
+    --green: #22c55e; --red: #ef4444; --yellow: #eab308; --blue: #3b82f6;
+    --card: #1e293b; --border: #334155;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg); color: var(--text); padding: 24px; line-height: 1.5;
+  }
+  .container { max-width: 1400px; margin: 0 auto; }
+
+  /* Header */
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; flex-wrap: wrap; gap: 12px; }
+  .header h1 { font-size: 28px; font-weight: 700; }
+  .header .subtitle { color: var(--muted); font-size: 14px; margin-top: 4px; }
+  .header .ts { color: var(--muted); font-size: 13px; }
+
+  /* Summary cards */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 32px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px;
+    text-align: center; transition: transform .15s;
+  }
+  .card:hover { transform: translateY(-2px); }
+  .card .num { font-size: 36px; font-weight: 800; }
+  .card .label { font-size: 13px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .5px; }
+  .card.total .num { color: var(--text); }
+  .card.passed .num { color: var(--green); }
+  .card.failed .num { color: var(--red); }
+  .card.skipped .num { color: var(--yellow); }
+  .card.rate .num { color: var(--blue); }
+  .card.duration .num { color: var(--blue); font-size: 24px; }
+
+  /* Donut */
+  .chart-wrap { display: flex; justify-content: center; margin-bottom: 32px; gap: 32px; align-items: center; flex-wrap: wrap; }
+  .donut { width: 120px; height: 120px; position: relative; }
+  .donut svg { transform: rotate(-90deg); }
+  .donut .center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 800; }
+  .legend { display: flex; gap: 20px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+
+  /* Filters */
+  .filters { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .filters button {
+    padding: 6px 16px; border: 1px solid var(--border); border-radius: 20px;
+    background: var(--bg2); color: var(--text); cursor: pointer; font-size: 13px; transition: all .15s;
+  }
+  .filters button:hover { background: var(--bg3); }
+  .filters button.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .search-box { flex: 1; min-width: 200px; }
+  .search-box input {
+    width: 100%; padding: 8px 14px; border: 1px solid var(--border); border-radius: 20px;
+    background: var(--bg2); color: var(--text); font-size: 14px; outline: none;
+  }
+  .search-box input:focus { border-color: var(--blue); }
+
+  /* Table */
+  .table-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 12px 16px; font-size: 12px; text-transform: uppercase; color: var(--muted); letter-spacing: .5px; border-bottom: 1px solid var(--border); background: var(--bg2); }
+  td { padding: 14px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr.status-failed { --row-bg: rgba(239,68,68,.06); background: var(--row-bg); }
+  tr.status-timedOut { --row-bg: rgba(239,68,68,.06); background: var(--row-bg); }
+  tr.status-skipped { opacity: .6; }
+
+  .status-badge {
+    display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; text-transform: capitalize;
+  }
+  .status-badge.passed { background: rgba(34,197,94,.15); color: var(--green); }
+  .status-badge.failed, .status-badge.timedOut { background: rgba(239,68,68,.15); color: var(--red); }
+  .status-badge.skipped { background: rgba(234,179,8,.15); color: var(--yellow); }
+
+  .test-title { font-weight: 600; font-size: 15px; }
+  .test-meta { font-weight: 400; font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  details.steps { margin: 4px 0; }
+  details.steps summary { cursor: pointer; color: var(--blue); font-size: 13px; }
+  details.steps ul { margin: 6px 0 0 16px; font-size: 13px; color: var(--muted); list-style: none; }
+  details.steps li { padding: 2px 0; }
+  details.steps .dur { color: var(--muted); font-size: 11px; }
+
+  .error-block {
+    margin: 8px 0; padding: 10px 14px; background: rgba(239,68,68,.08);
+    border-left: 3px solid var(--red); border-radius: 6px; font-size: 13px;
+  }
+  .error-block strong { color: var(--red); display: block; margin-bottom: 4px; }
+  .error-block pre {
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: var(--muted);
+    white-space: pre-wrap; max-height: 200px; overflow-y: auto;
+  }
+
+  .screenshot img, .video-wrap video {
+    max-width: 200px; max-height: 120px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--border); transition: all .2s; margin-top: 6px;
+  }
+  .screenshot img.expanded, .video-wrap video.expanded { max-width: 100%; max-height: 600px; }
+
+  .empty { text-align: center; padding: 40px; color: var(--muted); }
+
+  .footer { text-align: center; padding: 32px 0 8px; color: var(--muted); font-size: 12px; }
+
+  @media (max-width: 768px) {
+    body { padding: 12px; }
+    .header h1 { font-size: 22px; }
+    .cards { grid-template-columns: repeat(2, 1fr); }
+    td { padding: 10px 12px; }
+    .test-title { font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="header">
+  <div>
+    <h1>🧪 Test Report</h1>
+    <div class="subtitle">AI Playwright Framework · PEMnet Configurator</div>
+  </div>
+  <div class="ts">7/1/2026, 6:02:16 PM · 52 tests</div>
+</div>
+
+<div class="cards">
+  <div class="card total"><div class="num">52</div><div class="label">Total</div></div>
+  <div class="card passed"><div class="num">29</div><div class="label">Passed</div></div>
+  <div class="card failed"><div class="num">23</div><div class="label">Failed</div></div>
+  <div class="card skipped"><div class="num">0</div><div class="label">Skipped</div></div>
+  <div class="card rate"><div class="num">56%</div><div class="label">Pass Rate</div></div>
+  <div class="card duration"><div class="num">14m 23s</div><div class="label">Total Duration</div></div>
+</div>
+
+<div class="chart-wrap">
+  <div class="donut">
+    <svg width="120" height="120" viewBox="0 0 120 120">
+      <circle cx="60" cy="60" r="50" fill="none" stroke="var(--bg3)" stroke-width="16"/>
+      <circle cx="60" cy="60" r="50" fill="none" stroke="var(--green)" stroke-width="16"
+        stroke-dasharray="175.1153846153846 138.8846153846154" stroke-linecap="round"/>
+      <circle cx="60" cy="60" r="50" fill="none" stroke="var(--red)" stroke-width="16"
+        stroke-dasharray="138.8846153846154 175.1153846153846"
+        stroke-dashoffset="-175.1153846153846" stroke-linecap="round"/>
+    </svg>
+    <div class="center">56%</div>
+  </div>
+  <div class="legend">
+    <span class="legend-item"><span class="legend-dot" style="background:var(--green)"></span> Passed 29</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--red)"></span> Failed 23</span>
+    <span class="legend-item"><span class="legend-dot" style="background:var(--yellow)"></span> Skipped 0</span>
+  </div>
+</div>
+
+<div class="filters">
+  <button class="active" data-filter="all" onclick="filter('all')">All</button>
+  <button data-filter="passed" onclick="filter('passed')">✅ Passed</button>
+  <button data-filter="failed" onclick="filter('failed')">❌ Failed</button>
+  <button data-filter="timedOut" onclick="filter('failed')">⏰ Timed Out</button>
+  <button data-filter="skipped" onclick="filter('skipped')">⏭️ Skipped</button>
+  <div class="search-box"><input type="text" placeholder="Search tests..." oninput="search(this.value)"/></div>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead><tr>
+      <th style="width:30px"></th>
+      <th style="width:90px">Status</th>
+      <th>Test</th>
+      <th style="width:80px">Duration</th>
+      <th>Details</th>
+    </tr></thead>
+    <tbody id="test-body">
+      <tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-EDGE-001 — Rapid double-click on Sign In does not cause duplicate submission
+      <div class="test-meta">cross-cutting-edge-cases/cross-cutting-edge-cases.spec.js @ chromium</div>
+    </td>
+    <td>16.7s</td>
+    <td><details class="steps"><summary>Steps (3)</summary><ul><li>Navigate to login page <span class="dur">1.5s</span></li><li>Fill credentials and rapidly click Sign In twice <span class="dur">11.6s</span></li><li>Verify user is logged in without error <span class="dur">8ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/cross-cutting-edge-cases-c-369ee--cause-duplicate-submission-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-EDGE-002 — XSS injection in text fields is sanitized
+      <div class="test-meta">cross-cutting-edge-cases/cross-cutting-edge-cases.spec.js @ chromium</div>
+    </td>
+    <td>3.8s</td>
+    <td><details class="steps"><summary>Steps (3)</summary><ul><li>Navigate to register page <span class="dur">1.5s</span></li><li>Fill name field with XSS payload and submit <span class="dur">1.0s</span></li><li>Verify script was not executed <span class="dur">17ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/cross-cutting-edge-cases-c-259c0-in-text-fields-is-sanitized-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-EDGE-003 — Spinner/loading indicator visible while data loads
+      <div class="test-meta">cross-cutting-edge-cases/cross-cutting-edge-cases.spec.js @ chromium</div>
+    </td>
+    <td>5.6s</td>
+    <td><details class="steps"><summary>Steps (3)</summary><ul><li>Login as engineering <span class="dur">4.1s</span></li><li>Navigate to installation system <span class="dur">317ms</span></li><li>Check for spinner or loading state during page load <span class="dur">235ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/cross-cutting-edge-cases-c-99b7e-or-visible-while-data-loads-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-EDGE-004 — Browser back/forward does not corrupt page state
+      <div class="test-meta">cross-cutting-edge-cases/cross-cutting-edge-cases.spec.js @ chromium</div>
+    </td>
+    <td>8.6s</td>
+    <td><details class="steps"><summary>Steps (5)</summary><ul><li>Login as engineering <span class="dur">3.4s</span></li><li>Navigate to installation system <span class="dur">97ms</span></li><li>Interact with the page <span class="dur">1.5s</span></li><li>Navigate away and press back <span class="dur">2.2s</span></li><li>Verify page state is not corrupted <span class="dur">138ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/cross-cutting-edge-cases-c-fd537-does-not-corrupt-page-state-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-EDGE-005 — Unicode and special characters in text fields are handled gracefully
+      <div class="test-meta">cross-cutting-edge-cases/cross-cutting-edge-cases.spec.js @ chromium</div>
+    </td>
+    <td>3.8s</td>
+    <td><details class="steps"><summary>Steps (2)</summary><ul><li>Navigate to register page <span class="dur">1.5s</span></li><li>Enter unicode text in name field <span class="dur">942ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/cross-cutting-edge-cases-c-1fa9e-elds-are-handled-gracefully-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-EDGE-006 — Very long input does not break form submission
+      <div class="test-meta">cross-cutting-edge-cases/cross-cutting-edge-cases.spec.js @ chromium</div>
+    </td>
+    <td>3.9s</td>
+    <td><details class="steps"><summary>Steps (2)</summary><ul><li>Navigate to register page <span class="dur">1.5s</span></li><li>Enter very long text in name field <span class="dur">1.2s</span></li></ul></details><div class="video-wrap"><video src="../../test-results/cross-cutting-edge-cases-c-05c96-s-not-break-form-submission-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-EDGE-007 — Configuration panel loads with visible machine options section
+      <div class="test-meta">cross-cutting-edge-cases/cross-cutting-edge-cases.spec.js @ chromium</div>
+    </td>
+    <td>10.8s</td>
+    <td><details class="steps"><summary>Steps (3)</summary><ul><li>Login as engineering <span class="dur">3.7s</span></li><li>Navigate and open configuration panel <span class="dur">5.9s</span></li><li>Verify config panel sections are visible <span class="dur">64ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/cross-cutting-edge-cases-c-3da9d-ble-machine-options-section-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-EDGE-008 — Login with invalid credentials shows error message
+      <div class="test-meta">cross-cutting-edge-cases/cross-cutting-edge-cases.spec.js @ chromium</div>
+    </td>
+    <td>7.3s</td>
+    <td><details class="steps"><summary>Steps (3)</summary><ul><li>Navigate to login page <span class="dur">1.5s</span></li><li>Enter invalid credentials <span class="dur">4.5s</span></li><li>Verify error message is displayed <span class="dur">250ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/cross-cutting-edge-cases-c-4a5bd-entials-shows-error-message-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-024 — Forgot Password Page UI elements are all visible
+      <div class="test-meta">testweb-forgot-password/testweb-forgot-password.spec.js @ chromium</div>
+    </td>
+    <td>1.7s</td>
+    <td><details class="steps"><summary>Steps (2)</summary><ul><li>Navigate to forgot password page <span class="dur">550ms</span></li><li>Verify page heading, description, email input, Send OTP button, and Sign In link <span class="dur">350ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-forgot-password-te-e2e2e-UI-elements-are-all-visible-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-025 — Send OTP Happy Path for registered email
+      <div class="test-meta">testweb-forgot-password/testweb-forgot-password.spec.js @ chromium</div>
+    </td>
+    <td>6.7s</td>
+    <td><details class="steps"><summary>Steps (3)</summary><ul><li>Navigate to forgot password page <span class="dur">559ms</span></li><li>Enter registered email and click Send OTP <span class="dur">411ms</span></li><li>Verify success message and OTP input appear <span class="dur">5.0s</span> ❌</li></ul></details><div class="error-block"><strong>Error: ─── Success message should be visible after OTP sent ───
+[2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+Locator: getByText(/otp sent/i)
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+[2m  - Expect "toBeVisible" with timeout 5000ms[22m
+[2m  - waiting for getByText(/otp sent/i)[22m
+</strong><pre>Error: ─── Success message should be visible after OTP sent ───
+[2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+Locator: getByText(/otp sent/i)
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+[2m  - Expect &quot;toBeVisible&quot; with timeout 5000ms[22m
+[2m  - waiting for getByText(/otp sent/i)[22m
+
+    at assertionFn (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-forgot-password/testweb-forgot-password.spec.js:40:116)
+    at assertThat (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/expect-helper.js:16:11)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-forgot-password/testweb-forgot-password.spec.js:40:13
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-forgot-password/testweb-forgot-password.spec.js:39:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-forgot-password-te-cd3d4-y-Path-for-registered-email-chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div><div class="video-wrap"><video src="../../test-results/testweb-forgot-password-te-cd3d4-y-Path-for-registered-email-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-026 — Unregistered Email shows error or generic response
+      <div class="test-meta">testweb-forgot-password/testweb-forgot-password.spec.js @ chromium</div>
+    </td>
+    <td>6.7s</td>
+    <td><details class="steps"><summary>Steps (3)</summary><ul><li>Navigate to forgot password page <span class="dur">519ms</span></li><li>Enter unregistered email and click Send OTP <span class="dur">439ms</span></li><li>Verify error or generic response without revealing email existence <span class="dur">5.0s</span> ❌</li></ul></details><div class="error-block"><strong>Error: ─── Error message or generic response should be visible ───
+[2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+Locator: getByRole('alert')
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+[2m  - Expect "toBeVisible" with timeout 5000ms[22m
+[2m  - waiting for getByRole('alert')[22m
+</strong><pre>Error: ─── Error message or generic response should be visible ───
+[2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+Locator: getByRole('alert')
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+[2m  - Expect &quot;toBeVisible&quot; with timeout 5000ms[22m
+[2m  - waiting for getByRole('alert')[22m
+
+    at assertionFn (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-forgot-password/testweb-forgot-password.spec.js:57:117)
+    at assertThat (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/expect-helper.js:16:11)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-forgot-password/testweb-forgot-password.spec.js:57:13
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-forgot-password/testweb-forgot-password.spec.js:56:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-forgot-password-te-f900a-s-error-or-generic-response-chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div><div class="video-wrap"><video src="../../test-results/testweb-forgot-password-te-f900a-s-error-or-generic-response-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-027 — Empty Email Validation on Send OTP
+      <div class="test-meta">testweb-forgot-password/testweb-forgot-password.spec.js @ chromium</div>
+    </td>
+    <td>1.6s</td>
+    <td><details class="steps"><summary>Steps (3)</summary><ul><li>Navigate to forgot password page <span class="dur">728ms</span></li><li>Click Send OTP without entering email <span class="dur">148ms</span></li><li>Verify validation prevents submission or shows error <span class="dur">238ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-forgot-password-te-5e3cc-mail-Validation-on-Send-OTP-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-028 — Navigate to Sign In from forgot password page
+      <div class="test-meta">testweb-forgot-password/testweb-forgot-password.spec.js @ chromium</div>
+    </td>
+    <td>1.5s</td>
+    <td><details class="steps"><summary>Steps (3)</summary><ul><li>Navigate to forgot password page <span class="dur">732ms</span></li><li>Click Sign In link <span class="dur">280ms</span></li><li>Verify navigation to /login page <span class="dur">40ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-forgot-password-te-3d974-n-from-forgot-password-page-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-041 — Invalid OTP Attempts show error
+      <div class="test-meta">testweb-forgot-password/testweb-forgot-password.spec.js @ chromium</div>
+    </td>
+    <td>11.7s</td>
+    <td><details class="steps"><summary>Steps (2)</summary><ul><li>Navigate to forgot password page <span class="dur">616ms</span></li><li>Request OTP for valid email <span class="dur">10.4s</span> ❌</li></ul></details><div class="error-block"><strong>Error: ─── OTP input should appear after sending OTP ───
+[2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+Locator: locator('#otp')
+Expected: visible
+Timeout: 10000ms
+Error: element(s) not found
+
+Call log:
+[2m  - Expect "toBeVisible" with timeout 10000ms[22m
+[2m  - waiting for locator('#otp')[22m
+</strong><pre>Error: ─── OTP input should appear after sending OTP ───
+[2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+Locator: locator('#otp')
+Expected: visible
+Timeout: 10000ms
+Error: element(s) not found
+
+Call log:
+[2m  - Expect &quot;toBeVisible&quot; with timeout 10000ms[22m
+[2m  - waiting for locator('#otp')[22m
+
+    at assertionFn (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-forgot-password/testweb-forgot-password.spec.js:104:103)
+    at assertThat (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/expect-helper.js:16:11)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-forgot-password/testweb-forgot-password.spec.js:104:13
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-forgot-password/testweb-forgot-password.spec.js:102:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-forgot-password-te-4a3ec-lid-OTP-Attempts-show-error-chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div><div class="video-wrap"><video src="../../test-results/testweb-forgot-password-te-4a3ec-lid-OTP-Attempts-show-error-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-042 — OTP Expiry after waiting
+      <div class="test-meta">testweb-forgot-password/testweb-forgot-password.spec.js @ chromium</div>
+    </td>
+    <td>11.6s</td>
+    <td><details class="steps"><summary>Steps (2)</summary><ul><li>Navigate to forgot password page <span class="dur">608ms</span></li><li>Request OTP for valid email <span class="dur">10.5s</span> ❌</li></ul></details><div class="error-block"><strong>Error: ─── OTP input should appear ───
+[2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+Locator: locator('#otp')
+Expected: visible
+Timeout: 10000ms
+Error: element(s) not found
+
+Call log:
+[2m  - Expect "toBeVisible" with timeout 10000ms[22m
+[2m  - waiting for locator('#otp')[22m
+</strong><pre>Error: ─── OTP input should appear ───
+[2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+Locator: locator('#otp')
+Expected: visible
+Timeout: 10000ms
+Error: element(s) not found
+
+Call log:
+[2m  - Expect &quot;toBeVisible&quot; with timeout 10000ms[22m
+[2m  - waiting for locator('#otp')[22m
+
+    at assertionFn (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-forgot-password/testweb-forgot-password.spec.js:124:85)
+    at assertThat (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/expect-helper.js:16:11)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-forgot-password/testweb-forgot-password.spec.js:124:13
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-forgot-password/testweb-forgot-password.spec.js:122:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-forgot-password-te-3b0f7--—-OTP-Expiry-after-waiting-chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div><div class="video-wrap"><video src="../../test-results/testweb-forgot-password-te-3b0f7--—-OTP-Expiry-after-waiting-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-032 — Brand Links are visible and have correct href attributes
+      <div class="test-meta">testweb-home/testweb-home-page.spec.js @ chromium</div>
+    </td>
+    <td>1.3s</td>
+    <td><details class="steps"><summary>Steps (6)</summary><ul><li>Navigate to TestWeb home page <span class="dur">651ms</span></li><li>Verify PEMNet brand link exists and is clickable <span class="dur">322ms</span></li><li>Verify Profil-Global brand link exists and is clickable <span class="dur">19ms</span></li><li>Verify Haeger brand link exists and is clickable <span class="dur">79ms</span></li><li>Verify Autoriv brand link exists and is clickable <span class="dur">20ms</span></li><li>Verify Sherex brand link exists and is clickable <span class="dur">16ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-home-testweb-home--de5f7-ave-correct-href-attributes-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-001 — Login Page UI Elements are all visible
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>8.8s</td>
+    <td><details class="steps"><summary>Steps (6)</summary><ul><li>Navigate to TestWeb home page <span class="dur">685ms</span></li><li>Verify brand links are visible in navigation <span class="dur">271ms</span></li><li>Verify Find Your Installation System button is visible <span class="dur">47ms</span></li><li>Verify Sign In button is visible <span class="dur">17ms</span></li><li>Verify Register button is visible <span class="dur">31ms</span></li><li>Verify email input field is visible <span class="dur">5.2s</span> ❌</li></ul></details><div class="error-block"><strong>Error: ─── Email input should be visible ───
+[2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+Locator: getByLabel(/email/i)
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+[2m  - Expect "toBeVisible" with timeout 5000ms[22m
+[2m  - waiting for getByLabel(/email/i)[22m
+</strong><pre>Error: ─── Email input should be visible ───
+[2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+Locator: getByLabel(/email/i)
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+[2m  - Expect &quot;toBeVisible&quot; with timeout 5000ms[22m
+[2m  - waiting for getByLabel(/email/i)[22m
+
+    at assertionFn (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:40:97)
+    at assertThat (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/expect-helper.js:16:11)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:40:13
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:39:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-login-testweb-logi-1aefc-UI-Elements-are-all-visible-chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div><div class="video-wrap"><video src="../../test-results/testweb-login-testweb-logi-1aefc-UI-Elements-are-all-visible-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-002 — Happy Path Password Flow (Engineering)
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>11.0s</td>
+    <td><details class="steps"><summary>Steps (2)</summary><ul><li>Navigate to TestWeb home page <span class="dur">554ms</span></li><li>Click Sign in with a password instead <span class="dur">10.0s</span> ❌</li></ul></details><div class="error-block"><strong>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+</strong><pre>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:61:69
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:60:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-login-testweb-logi-77929--Password-Flow-Engineering--chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div><div class="video-wrap"><video src="../../test-results/testweb-login-testweb-logi-77929--Password-Flow-Engineering--chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-003 — Happy Path Password Flow (Sales)
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>12.5s</td>
+    <td><details class="steps"><summary>Steps (2)</summary><ul><li>Navigate to TestWeb home page <span class="dur">586ms</span></li><li>Click Sign in with a password instead <span class="dur">10.1s</span> ❌</li></ul></details><div class="error-block"><strong>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+</strong><pre>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:95:69
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:94:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-login-testweb-logi-0056a-y-Path-Password-Flow-Sales--chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div><div class="video-wrap"><video src="../../test-results/testweb-login-testweb-logi-0056a-y-Path-Password-Flow-Sales--chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-004 — Happy Path Password Flow (Customer)
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>12.3s</td>
+    <td><details class="steps"><summary>Steps (2)</summary><ul><li>Navigate to TestWeb home page <span class="dur">780ms</span></li><li>Click Sign in with a password instead <span class="dur">10.1s</span> ❌</li></ul></details><div class="error-block"><strong>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+</strong><pre>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:129:69
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:128:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-login-testweb-logi-bccd8-ath-Password-Flow-Customer--chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div><div class="video-wrap"><video src="../../test-results/testweb-login-testweb-logi-bccd8-ath-Password-Flow-Customer--chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-005 — Happy Path Password Flow (Distributor)
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>25.9s</td>
+    <td><details class="steps"><summary>Steps (2)</summary><ul><li>Navigate to TestWeb home page <span class="dur">1.1s</span></li><li>Click Sign in with a password instead <span class="dur">11.3s</span> ❌</li></ul></details><div class="error-block"><strong>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+</strong><pre>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:163:69
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:162:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-login-testweb-logi-070df--Password-Flow-Distributor--chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div><div class="video-wrap"><video src="../../test-results/testweb-login-testweb-logi-070df--Password-Flow-Distributor--chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-006 — Magic Link Flow UI shows Send Code button when email entered
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>18.0s</td>
+    <td><details class="steps"><summary>Steps (2)</summary><ul><li>Navigate to TestWeb home page <span class="dur">991ms</span></li><li>Verify email input is visible <span class="dur">5.3s</span> ❌</li></ul></details><div class="error-block"><strong>Error: ─── Email input should be visible ───
+[2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+Locator: getByLabel(/email/i)
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+[2m  - Expect "toBeVisible" with timeout 5000ms[22m
+[2m  - waiting for getByLabel(/email/i)[22m
+</strong><pre>Error: ─── Email input should be visible ───
+[2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+Locator: getByLabel(/email/i)
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+[2m  - Expect &quot;toBeVisible&quot; with timeout 5000ms[22m
+[2m  - waiting for getByLabel(/email/i)[22m
+
+    at assertionFn (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:196:97)
+    at assertThat (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/expect-helper.js:16:11)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:196:13
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:195:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-login-testweb-logi-661dd-e-button-when-email-entered-chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div><div class="video-wrap"><video src="../../test-results/testweb-login-testweb-logi-661dd-e-button-when-email-entered-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-007 — Magic Link Send Code flow
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>22.2s</td>
+    <td><details class="steps"><summary>Steps (4)</summary><ul><li>Navigate to TestWeb login page <span class="dur">1.5s</span></li><li>Enter engineering@penn.com in email input <span class="dur">3.1s</span></li><li>Click Send code button <span class="dur">2.4s</span></li><li>Verify OTP input field appears <span class="dur">5.9s</span> ❌</li></ul></details><div class="error-block"><strong>Error: ─── OTP input should appear ───
+[2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+Locator: locator('#otp')
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+[2m  - Expect "toBeVisible" with timeout 5000ms[22m
+[2m  - waiting for locator('#otp')[22m
+</strong><pre>Error: ─── OTP input should appear ───
+[2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+Locator: locator('#otp')
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+[2m  - Expect &quot;toBeVisible&quot; with timeout 5000ms[22m
+[2m  - waiting for locator('#otp')[22m
+
+    at assertionFn (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:224:86)
+    at assertThat (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/expect-helper.js:16:11)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:224:13
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:223:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-login-testweb-logi-f1cbc-—-Magic-Link-Send-Code-flow-chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div><div class="video-wrap"><video src="../../test-results/testweb-login-testweb-logi-f1cbc-—-Magic-Link-Send-Code-flow-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-008 — Invalid Credentials shows error and stays on login page
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>42.8s</td>
+    <td><details class="steps"><summary>Steps (2)</summary><ul><li>Navigate to TestWeb home page <span class="dur">1.4s</span></li><li>Click Sign in with a password instead <span class="dur">11.8s</span> ❌</li></ul></details><div class="error-block"><strong>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+</strong><pre>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:240:69
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:239:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-login-testweb-logi-3518b-ror-and-stays-on-login-page-chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div><div class="video-wrap"><video src="../../test-results/testweb-login-testweb-logi-3518b-ror-and-stays-on-login-page-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-009 — Empty Email Validation on login
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>25.4s</td>
+    <td><details class="steps"><summary>Steps (3)</summary><ul><li>Navigate to TestWeb login page <span class="dur">1.4s</span></li><li>Click Send code without entering email <span class="dur">3.2s</span></li><li>Verify page remains on /login with no crash <span class="dur">2.1s</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-login-testweb-logi-24d5a-y-Email-Validation-on-login-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-010 — Empty Password Validation on login
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>42.3s</td>
+    <td><details class="steps"><summary>Steps (2)</summary><ul><li>Navigate to TestWeb home page <span class="dur">1.0s</span></li><li>Enter email <span class="dur">10.6s</span> ❌</li></ul></details><div class="error-block"><strong>TimeoutError: locator.fill: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByLabel(/email/i)[22m
+</strong><pre>TimeoutError: locator.fill: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByLabel(/email/i)[22m
+
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:286:39
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:285:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-login-testweb-logi-0a6b4-assword-Validation-on-login-chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-011 — Case-Insensitive Email login succeeds with UPPERCASE email
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>42.2s</td>
+    <td><details class="steps"><summary>Steps (2)</summary><ul><li>Navigate to TestWeb home page <span class="dur">1.1s</span></li><li>Click Sign in with a password instead <span class="dur">10.8s</span> ❌</li></ul></details><div class="error-block"><strong>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+</strong><pre>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:313:69
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:312:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-login-testweb-logi-b4e89-cceeds-with-UPPERCASE-email-chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-012 — Password Field is Masked
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>42.0s</td>
+    <td><details class="steps"><summary>Steps (2)</summary><ul><li>Navigate to TestWeb home page <span class="dur">1.2s</span></li><li>Click Sign in with a password instead <span class="dur">10.6s</span> ❌</li></ul></details><div class="error-block"><strong>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+</strong><pre>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:345:69
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:344:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-login-testweb-logi-1a1fa--—-Password-Field-is-Masked-chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-013 — Navigate to Register page from login
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>16.8s</td>
+    <td><details class="steps"><summary>Steps (3)</summary><ul><li>Navigate to TestWeb home page <span class="dur">2.2s</span></li><li>Click the Register link/button <span class="dur">5.4s</span></li><li>Verify navigated to /register <span class="dur">40ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-login-testweb-logi-82a18-to-Register-page-from-login-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-014 — Navigate to Forgot Password page
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>2.9s</td>
+    <td><details class="steps"><summary>Steps (4)</summary><ul><li>Navigate to forgot password page <span class="dur">798ms</span></li><li>Verify forgot password page loads with heading <span class="dur">133ms</span></li><li>Verify email input is visible <span class="dur">148ms</span></li><li>Verify Send OTP button is visible <span class="dur">66ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-login-testweb-logi-1425f-ate-to-Forgot-Password-page-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-029 — Home Page UI Elements visible (Unauthenticated)
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>2.9s</td>
+    <td><details class="steps"><summary>Steps (3)</summary><ul><li>Navigate to TestWeb home page (logged out) <span class="dur">931ms</span></li><li>Verify brand links are visible <span class="dur">598ms</span></li><li>Verify Sign In and Register buttons are visible <span class="dur">23ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-login-testweb-logi-9270f-ts-visible-Unauthenticated--chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-030 — Home Page UI (Authenticated) shows user menu
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>43.4s</td>
+    <td><details class="steps"><summary>Steps (1)</summary><ul><li>Login as engineering@penn.com <span class="dur">12.6s</span> ❌</li></ul></details><div class="error-block"><strong>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+</strong><pre>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:417:69
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:415:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-login-testweb-logi-53bb7-thenticated-shows-user-menu-chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-031 — Navigate to Installation System from authenticated home page
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>42.7s</td>
+    <td><details class="steps"><summary>Steps (1)</summary><ul><li>Login as engineering@penn.com <span class="dur">12.3s</span> ❌</li></ul></details><div class="error-block"><strong>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+</strong><pre>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:439:69
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:437:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-login-testweb-logi-a3d50-rom-authenticated-home-page-chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-033 — Logout Via User Menu redirects to login
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>43.9s</td>
+    <td><details class="steps"><summary>Steps (1)</summary><ul><li>Login as engineering@penn.com <span class="dur">14.9s</span> ❌</li></ul></details><div class="error-block"><strong>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+</strong><pre>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:464:69
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:462:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-login-testweb-logi-903fa-ser-Menu-redirects-to-login-chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div><div class="video-wrap"><video src="../../test-results/testweb-login-testweb-logi-903fa-ser-Menu-redirects-to-login-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-034 — Protected Route Without Auth redirects to login
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>13.9s</td>
+    <td><details class="steps"><summary>Steps (2)</summary><ul><li>Navigate to /installation-system without auth <span class="dur">1.4s</span></li><li>Verify redirect to login page <span class="dur">435ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-login-testweb-logi-5da92-out-Auth-redirects-to-login-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-035 — Expired Session redirects to login on protected page access
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>25.0s</td>
+    <td><details class="steps"><summary>Steps (1)</summary><ul><li>Login as engineering@penn.com <span class="dur">13.4s</span> ❌</li></ul></details><div class="error-block"><strong>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+</strong><pre>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:501:69
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:499:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-login-testweb-logi-71700-in-on-protected-page-access-chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div><div class="video-wrap"><video src="../../test-results/testweb-login-testweb-logi-71700-in-on-protected-page-access-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-036 — Login Persists Across Tabs
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>41.7s</td>
+    <td><details class="steps"><summary>Steps (1)</summary><ul><li>Login as engineering@penn.com in tab 1 <span class="dur">11.2s</span> ❌</li></ul></details><div class="error-block"><strong>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+</strong><pre>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:534:69
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:532:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-login-testweb-logi-897bd--Login-Persists-Across-Tabs-chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-037 — Page Refresh Preserves Session
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>43.5s</td>
+    <td><details class="steps"><summary>Steps (1)</summary><ul><li>Login as engineering@penn.com <span class="dur">11.5s</span> ❌</li></ul></details><div class="error-block"><strong>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+</strong><pre>TimeoutError: locator.click: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: /password instead/i })[22m
+
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:559:69
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:557:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-login-testweb-logi-846c7-e-Refresh-Preserves-Session-chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-043 — Password Instead Button Toggle shows password field
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>43.0s</td>
+    <td><details class="steps"><summary>Steps (2)</summary><ul><li>Navigate to TestWeb home page <span class="dur">626ms</span></li><li>Enter email in the email input <span class="dur">10.9s</span> ❌</li></ul></details><div class="error-block"><strong>TimeoutError: locator.fill: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByLabel(/email/i)[22m
+</strong><pre>TimeoutError: locator.fill: Timeout 10000ms exceeded.
+Call log:
+[2m  - waiting for getByLabel(/email/i)[22m
+
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:586:39
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:585:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-login-testweb-logi-e257b-Toggle-shows-password-field-chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div></td>
+  </tr><tr class="test-row status-failed" data-status="failed">
+    <td>❌</td>
+    <td class="status-badge failed">failed</td>
+    <td class="test-title">TC-TW-044 — Email Input has autocomplete attribute
+      <div class="test-meta">testweb-login/testweb-login.spec.js @ chromium</div>
+    </td>
+    <td>38.4s</td>
+    <td><details class="steps"><summary>Steps (2)</summary><ul><li>Navigate to TestWeb home page <span class="dur">674ms</span></li><li>Inspect the email input element <span class="dur">5.5s</span> ❌</li></ul></details><div class="error-block"><strong>Error: ─── Email input should have autocomplete attribute set to email ───
+[2mexpect([22m[31mlocator[39m[2m).[22mtoHaveAttribute[2m([22m[32mexpected[39m[2m)[22m failed
+
+Locator: getByLabel(/email/i)
+Expected: [32m"email"[39m
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+[2m  - Expect "toHaveAttribute" with timeout 5000ms[22m
+[2m  - waiting for getByLabel(/email/i)[22m
+</strong><pre>Error: ─── Email input should have autocomplete attribute set to email ───
+[2mexpect([22m[31mlocator[39m[2m).[22mtoHaveAttribute[2m([22m[32mexpected[39m[2m)[22m failed
+
+Locator: getByLabel(/email/i)
+Expected: [32m&quot;email&quot;[39m
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+[2m  - Expect &quot;toHaveAttribute&quot; with timeout 5000ms[22m
+[2m  - waiting for getByLabel(/email/i)[22m
+
+    at assertionFn (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:609:112)
+    at assertThat (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/expect-helper.js:16:11)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:609:13
+    at step (/Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/fixtures/step-runner.js:23:5)
+    at /Users/amudhavicky/Downloads/PlayWrightFrameworks/AI-PLAYWRIGHT-FRAMEWORK/tests/testweb-login/testweb-login.spec.js:607:5</pre></div><div class="screenshot"><img src="../../test-results/testweb-login-testweb-logi-58039--has-autocomplete-attribute-chromium/test-failed-1.png" onclick="this.classList.toggle('expanded')" /></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-015 — Register Page UI Elements are all visible
+      <div class="test-meta">testweb-register/testweb-register.spec.js @ chromium</div>
+    </td>
+    <td>16.9s</td>
+    <td><details class="steps"><summary>Steps (5)</summary><ul><li>Navigate to TestWeb register page <span class="dur">836ms</span></li><li>Verify page heading shows Create an account <span class="dur">749ms</span></li><li>Verify all form fields are visible <span class="dur">3.1s</span></li><li>Verify Create account button is visible <span class="dur">293ms</span></li><li>Verify Sign in link is visible <span class="dur">47ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-register-testweb-r-74262-UI-Elements-are-all-visible-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-016 — Happy Path Complete Registration
+      <div class="test-meta">testweb-register/testweb-register.spec.js @ chromium</div>
+    </td>
+    <td>33.9s</td>
+    <td><details class="steps"><summary>Steps (4)</summary><ul><li>Navigate to TestWeb register page <span class="dur">671ms</span></li><li>Fill all required fields with valid data <span class="dur">10.7s</span></li><li>Click Create account button <span class="dur">1.9s</span></li><li>Verify registration proceeds to email verification step <span class="dur">3.8s</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-register-testweb-r-9c75a--Path-Complete-Registration-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-017 — Password Mismatch Validation shows error
+      <div class="test-meta">testweb-register/testweb-register.spec.js @ chromium</div>
+    </td>
+    <td>20.0s</td>
+    <td><details class="steps"><summary>Steps (4)</summary><ul><li>Navigate to TestWeb register page <span class="dur">1.2s</span></li><li>Fill all required fields with mismatching passwords <span class="dur">7.7s</span></li><li>Click Create account to trigger validation <span class="dur">850ms</span></li><li>Verify password mismatch error is displayed <span class="dur">548ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-register-testweb-r-4ad95-atch-Validation-shows-error-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-018 — Weak Password Validation shows error
+      <div class="test-meta">testweb-register/testweb-register.spec.js @ chromium</div>
+    </td>
+    <td>1.7s</td>
+    <td><details class="steps"><summary>Steps (4)</summary><ul><li>Navigate to TestWeb register page <span class="dur">729ms</span></li><li>Fill all required fields with weak password <span class="dur">601ms</span></li><li>Click Create account to trigger validation <span class="dur">38ms</span></li><li>Verify validation error is displayed <span class="dur">5ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-register-testweb-r-97c46-word-Validation-shows-error-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-019 — Required Fields Validation with empty form
+      <div class="test-meta">testweb-register/testweb-register.spec.js @ chromium</div>
+    </td>
+    <td>1.3s</td>
+    <td><details class="steps"><summary>Steps (3)</summary><ul><li>Navigate to TestWeb register page <span class="dur">761ms</span></li><li>Click Create account without filling any fields <span class="dur">143ms</span></li><li>Verify validation errors are shown for required fields <span class="dur">30ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-register-testweb-r-e6b2e--Validation-with-empty-form-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-020 — Invalid Email Format validation
+      <div class="test-meta">testweb-register/testweb-register.spec.js @ chromium</div>
+    </td>
+    <td>9.9s</td>
+    <td><details class="steps"><summary>Steps (4)</summary><ul><li>Navigate to TestWeb register page <span class="dur">1.0s</span></li><li>Fill all required fields with invalid email <span class="dur">5.0s</span></li><li>Click Create account to trigger validation <span class="dur">564ms</span></li><li>Verify email validation error is displayed <span class="dur">316ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-register-testweb-r-99120-lid-Email-Format-validation-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-021 — Email Already Exists shows error
+      <div class="test-meta">testweb-register/testweb-register.spec.js @ chromium</div>
+    </td>
+    <td>5.3s</td>
+    <td><details class="steps"><summary>Steps (4)</summary><ul><li>Navigate to TestWeb register page <span class="dur">878ms</span></li><li>Fill all fields using an already registered email <span class="dur">2.7s</span></li><li>Click Create account to submit registration <span class="dur">72ms</span></li><li>Verify no crash after submitting with existing email <span class="dur">120ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-register-testweb-r-a7a3e--Already-Exists-shows-error-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-022 — Telephone Number Validation with invalid input
+      <div class="test-meta">testweb-register/testweb-register.spec.js @ chromium</div>
+    </td>
+    <td>1.6s</td>
+    <td><details class="steps"><summary>Steps (4)</summary><ul><li>Navigate to TestWeb register page <span class="dur">732ms</span></li><li>Fill all required fields with invalid telephone <span class="dur">405ms</span></li><li>Click Create account to trigger validation <span class="dur">39ms</span></li><li>Verify telephone validation error is displayed <span class="dur">15ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-register-testweb-r-8c27f-lidation-with-invalid-input-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-023 — Cancel/Navigate Away via Sign In link
+      <div class="test-meta">testweb-register/testweb-register.spec.js @ chromium</div>
+    </td>
+    <td>1.3s</td>
+    <td><details class="steps"><summary>Steps (3)</summary><ul><li>Navigate to TestWeb register page <span class="dur">624ms</span></li><li>Click Sign in link to navigate away <span class="dur">100ms</span></li><li>Verify navigation to /login page <span class="dur">44ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-register-testweb-r-142d3-igate-Away-via-Sign-In-link-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-038 — Long Password Validation (100+ characters)
+      <div class="test-meta">testweb-register/testweb-register.spec.js @ chromium</div>
+    </td>
+    <td>1.5s</td>
+    <td><details class="steps"><summary>Steps (3)</summary><ul><li>Navigate to TestWeb register page <span class="dur">750ms</span></li><li>Enter a very long password (110 characters) <span class="dur">404ms</span></li><li>Click Create account and verify graceful handling <span class="dur">51ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-register-testweb-r-c01ff--Validation-100-characters--chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-039 — Special Characters in Name fields
+      <div class="test-meta">testweb-register/testweb-register.spec.js @ chromium</div>
+    </td>
+    <td>1.2s</td>
+    <td><details class="steps"><summary>Steps (3)</summary><ul><li>Navigate to TestWeb register page <span class="dur">521ms</span></li><li>Enter special characters in first and last name fields <span class="dur">442ms</span></li><li>Click Create account and verify graceful handling of special characters <span class="dur">38ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-register-testweb-r-3653d-l-Characters-in-Name-fields-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr><tr class="test-row status-passed" data-status="passed">
+    <td>✅</td>
+    <td class="status-badge passed">passed</td>
+    <td class="test-title">TC-TW-040 — All Fields Max Length with very long values
+      <div class="test-meta">testweb-register/testweb-register.spec.js @ chromium</div>
+    </td>
+    <td>1.5s</td>
+    <td><details class="steps"><summary>Steps (3)</summary><ul><li>Navigate to TestWeb register page <span class="dur">705ms</span></li><li>Fill all fields with very long values <span class="dur">381ms</span></li><li>Click Create account and verify graceful handling of max length values <span class="dur">50ms</span></li></ul></details><div class="video-wrap"><video src="../../test-results/testweb-register-testweb-r-d5ad6-ength-with-very-long-values-chromium/video.webm" controls preload="metadata" onclick="this.classList.toggle('expanded')"></video></div></td>
+  </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="footer">Generated by AI Playwright Framework · <a href="https://github.com/anomalyco/opencode" style="color:var(--blue)">opencode</a></div>
+</div>
+
+<script>
+function filter(status) {
+  document.querySelectorAll('.filters button').forEach(b => b.classList.toggle('active', b.dataset.filter === status));
+  document.querySelectorAll('.test-row').forEach(r => {
+    if (status === 'all') { r.style.display = ''; return; }
+    const matches = r.dataset.status === status;
+    r.style.display = matches ? '' : 'none';
+  });
+}
+function search(val) {
+  const q = val.toLowerCase();
+  document.querySelectorAll('.test-row').forEach(r => {
+    const title = r.querySelector('.test-title')?.textContent?.toLowerCase() || '';
+    r.style.display = title.includes(q) ? '' : 'none';
+  });
+}
+</script>
+</body>
+</html>
